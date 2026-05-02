@@ -6,6 +6,8 @@ use crate::wmi::{
 };
 use rustyline::{Config, Editor};
 use std::sync::{Arc, Mutex};
+use tabled::Table;
+use tabled::settings::Style;
 
 pub struct Shell {
     client: Arc<Mutex<Box<dyn WmiProvider>>>,
@@ -120,44 +122,65 @@ impl Shell {
         let client = self.client.lock().unwrap();
         let results = client.query(query)?;
         let it = WmiResult::new(results);
-        let mut first = true;
+        
+        let mut rows = Vec::new();
         let mut headers = Vec::new();
+        let mut first = true;
 
         for obj in it {
             let obj = obj?;
             if first {
                 headers = get_property_names(&obj)?;
-                if self.format == OutputFormat::Csv {
-                    println!("{}", headers.join(","));
-                }
+                first = false;
             }
 
-            match self.format {
-                OutputFormat::Csv => {
-                    let mut row = Vec::new();
-                    for header in &headers {
-                        let val = get_property(&obj, header)?;
-                        row.push(variant_to_string(&val));
-                    }
+            let mut row = Vec::new();
+            for header in &headers {
+                let val = get_property(&obj, header)?;
+                row.push(variant_to_string(&val));
+            }
+            rows.push(row);
+        }
+
+        if rows.is_empty() {
+            return Ok(());
+        }
+
+        match self.format {
+            OutputFormat::Csv => {
+                println!("{}", headers.join(","));
+                for row in rows {
                     println!("{}", row.join(","));
                 }
-                OutputFormat::Table => {
-                    if first {
-                         println!("{}", headers.join("\t"));
-                    }
-                    let mut row = Vec::new();
-                    for header in &headers {
-                        let val = get_property(&obj, header)?;
-                        row.push(variant_to_string(&val));
-                    }
-                    println!("{}", row.join("\t"));
-                }
-                OutputFormat::Json => {
-                    let json_val = wmi_obj_to_json(&obj)?;
-                    println!("{}", serde_json::to_string_pretty(&json_val)?);
-                }
             }
-            first = false;
+            OutputFormat::Table | OutputFormat::Ascii | OutputFormat::Markdown => {
+                // Table requires references to elements. Constructing a grid
+                let mut data = Vec::new();
+                data.push(headers);
+                for row in rows {
+                    data.push(row);
+                }
+
+                let mut table = Table::from_iter(data);
+                match self.format {
+                    OutputFormat::Table => table.with(Style::sharp()),
+                    OutputFormat::Ascii => table.with(Style::psql()),
+                    OutputFormat::Markdown => table.with(Style::markdown()),
+                    _ => unreachable!(),
+                };
+                println!("{}", table);
+            }
+            OutputFormat::Json => {
+                let client = self.client.lock().unwrap();
+                let results = client.query(query)?;
+                let it = WmiResult::new(results);
+                let mut json_arr = Vec::new();
+                for obj in it {
+                    let obj = obj?;
+                    json_arr.push(wmi_obj_to_json(&obj)?);
+                }
+                println!("{}", serde_json::to_string_pretty(&json_arr)?);
+            }
         }
         Ok(())
     }

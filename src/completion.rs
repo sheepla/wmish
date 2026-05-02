@@ -271,7 +271,7 @@ impl Completer for WmiHelper {
                 return Ok((word_start, candidates));
             }
             "FORMAT" => {
-                let formats = vec!["CSV", "TABLE", "JSON"];
+                let formats = vec!["CSV", "TABLE", "JSON", "ASCII", "MARKDOWN"];
                 for f in formats {
                     if f.starts_with(&up_last_word) {
                         candidates.push(Pair {

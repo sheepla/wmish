@@ -28,6 +28,8 @@ pub enum OutputFormat {
     Csv,
     Table,
     Json,
+    Ascii,
+    Markdown,
 }
 
 pub fn parse_command(input: &str) -> IResult<&str, Command> {
@@ -96,6 +98,8 @@ fn parse_format(input: &str) -> IResult<&str, Command> {
                 map(tag_no_case("CSV"), |_| OutputFormat::Csv),
                 map(tag_no_case("TABLE"), |_| OutputFormat::Table),
                 map(tag_no_case("JSON"), |_| OutputFormat::Json),
+                map(tag_no_case("ASCII"), |_| OutputFormat::Ascii),
+                map(tag_no_case("MARKDOWN"), |_| OutputFormat::Markdown),
             )),
         ),
         Command::Format,
