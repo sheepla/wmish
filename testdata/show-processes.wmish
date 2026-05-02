@@ -1,0 +1,2 @@
+FORMAT json
+SELECT * FROM Win32_Process WHERE Name LIKE 'cmd.exe'
