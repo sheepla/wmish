@@ -6,13 +6,13 @@ use windows::{
     Win32::System::Rpc::*,
     Win32::System::Variant::*,
 };
-use crate::errors::Result;
+use crate::errors::AppError;
 use serde_json::{Value, Map};
 
 pub trait WmiProvider: Send + Sync {
-    fn query(&self, query: &str) -> Result<IEnumWbemClassObject>;
-    fn list_classes(&self) -> Result<IEnumWbemClassObject>;
-    fn get_class(&self, class_name: &str) -> Result<IWbemClassObject>;
+    fn query(&self, query: &str) -> std::result::Result<IEnumWbemClassObject, AppError>;
+    fn list_classes(&self) -> std::result::Result<IEnumWbemClassObject, AppError>;
+    fn get_class(&self, class_name: &str) -> std::result::Result<IWbemClassObject, AppError>;
 }
 
 pub struct WmiClient {
@@ -24,7 +24,7 @@ unsafe impl Send for WmiClient {}
 unsafe impl Sync for WmiClient {}
 
 impl WmiProvider for WmiClient {
-    fn query(&self, query: &str) -> Result<IEnumWbemClassObject> {
+    fn query(&self, query: &str) -> std::result::Result<IEnumWbemClassObject, AppError> {
         unsafe {
             let language = BSTR::from("WQL");
             let query = BSTR::from(query);
@@ -37,7 +37,7 @@ impl WmiProvider for WmiClient {
         }
     }
 
-    fn list_classes(&self) -> Result<IEnumWbemClassObject> {
+    fn list_classes(&self) -> std::result::Result<IEnumWbemClassObject, AppError> {
         unsafe {
             Ok(self.services.CreateClassEnum(
                 &BSTR::default(),
@@ -47,7 +47,7 @@ impl WmiProvider for WmiClient {
         }
     }
 
-    fn get_class(&self, class_name: &str) -> Result<IWbemClassObject> {
+    fn get_class(&self, class_name: &str) -> std::result::Result<IWbemClassObject, AppError> {
         unsafe {
             let mut obj = None;
             self.services.GetObject(&BSTR::from(class_name), WBEM_FLAG_RETURN_WBEM_COMPLETE, None, Some(&mut obj), None)?;
@@ -57,7 +57,7 @@ impl WmiProvider for WmiClient {
 }
 
 impl WmiClient {
-    pub fn connect(namespace: &str) -> Result<Self> {
+    pub fn connect(namespace: &str) -> std::result::Result<Self, AppError> {
         unsafe {
             let locator: IWbemLocator = CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER)?;
             let services = locator.ConnectServer(
@@ -105,7 +105,7 @@ impl WmiResult {
 }
 
 impl Iterator for WmiResult {
-    type Item = Result<IWbemClassObject>;
+    type Item = std::result::Result<IWbemClassObject, AppError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
@@ -121,7 +121,7 @@ impl Iterator for WmiResult {
     }
 }
 
-pub fn get_property(obj: &IWbemClassObject, name: &str) -> Result<VARIANT> {
+pub fn get_property(obj: &IWbemClassObject, name: &str) -> std::result::Result<VARIANT, AppError> {
     unsafe {
         let mut value = VARIANT::default();
         obj.Get(&BSTR::from(name), 0, &mut value, None, None)?;
@@ -129,7 +129,7 @@ pub fn get_property(obj: &IWbemClassObject, name: &str) -> Result<VARIANT> {
     }
 }
 
-pub fn get_property_names(obj: &IWbemClassObject) -> Result<Vec<String>> {
+pub fn get_property_names(obj: &IWbemClassObject) -> std::result::Result<Vec<String>, AppError> {
     unsafe {
         let mut names = Vec::new();
         let qualifier = BSTR::default();
@@ -182,7 +182,7 @@ pub fn variant_to_value(v: &VARIANT) -> Value {
     }
 }
 
-pub fn wmi_obj_to_json(obj: &IWbemClassObject) -> Result<Value> {
+pub fn wmi_obj_to_json(obj: &IWbemClassObject) -> std::result::Result<Value, AppError> {
     let names = get_property_names(obj)?;
     let mut map = Map::new();
     for name in names {
@@ -192,7 +192,7 @@ pub fn wmi_obj_to_json(obj: &IWbemClassObject) -> Result<Value> {
     Ok(Value::Object(map))
 }
 
-pub fn get_object_text(obj: &IWbemClassObject) -> Result<String> {
+pub fn get_object_text(obj: &IWbemClassObject) -> std::result::Result<String, AppError> {
     unsafe {
         let text = obj.GetObjectText(0)?;
         Ok(text.to_string())

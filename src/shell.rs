@@ -1,5 +1,5 @@
 use crate::completion::WmiHelper;
-use crate::errors::Result;
+use crate::errors::AppError;
 use crate::parser::{Command, OutputFormat, parse_command};
 use crate::wmi::{
     WmiClient, WmiProvider, WmiResult, get_property, get_property_names, variant_to_string, wmi_obj_to_json, get_object_text,
@@ -14,7 +14,7 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> std::result::Result<Self, AppError> {
         let namespace = r#"ROOT\CIMV2"#.to_string();
         let client = WmiClient::connect(&namespace)?;
         Ok(Self {
@@ -24,7 +24,7 @@ impl Shell {
         })
     }
 
-    pub fn run(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> std::result::Result<(), AppError> {
         let config = Config::builder()
             .completion_type(rustyline::CompletionType::List)
             .build();
@@ -69,7 +69,7 @@ impl Shell {
         Ok(())
     }
 
-    pub fn execute_command(&mut self, cmd: Command) -> Result<()> {
+    pub fn execute_command(&mut self, cmd: Command) -> std::result::Result<(), AppError> {
         match cmd {
             Command::Namespace(ns) => {
                 let new_client = WmiClient::connect(&ns)?;
@@ -116,7 +116,7 @@ impl Shell {
         Ok(())
     }
 
-    pub fn execute_query(&self, query: &str) -> Result<()> {
+    pub fn execute_query(&self, query: &str) -> std::result::Result<(), AppError> {
         let client = self.client.lock().unwrap();
         let results = client.query(query)?;
         let it = WmiResult::new(results);
@@ -130,7 +130,6 @@ impl Shell {
                 if self.format == OutputFormat::Csv {
                     println!("{}", headers.join(","));
                 }
-                first = false;
             }
 
             match self.format {

@@ -44,3 +44,7 @@ Inline commands are available for `shell` and `run` command.
 - [x] `FORMAT CSV|TABLE|JSON`: Set output format (JSON is pretty-printed)
 - [ ] `CALL <MethodName> <<PropertyName1=Value1> <PropertyName=Value2> ...> WITH <Query|ClassName>`
 - [x] `MOF <ClassName>`: Get MOF (Managed Object Format) of specified class name
+
+## Examples
+
+TODO

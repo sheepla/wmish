@@ -11,6 +11,3 @@ pub enum AppError {
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 }
-
-// @agent DO NOT use type alias , specifiy Result<T,AppError> explicitly to avoid confusion with other Result types.
-pub type Result<T> = std::result::Result<T, AppError>;
