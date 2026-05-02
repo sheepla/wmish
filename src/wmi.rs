@@ -6,6 +6,8 @@ use windows::{
     Win32::System::Rpc::*,
     Win32::System::Variant::*,
 };
+use crate::errors::Result;
+use serde_json::{Value, Map};
 
 pub trait WmiProvider: Send + Sync {
     fn query(&self, query: &str) -> Result<IEnumWbemClassObject>;
@@ -26,22 +28,22 @@ impl WmiProvider for WmiClient {
         unsafe {
             let language = BSTR::from("WQL");
             let query = BSTR::from(query);
-            self.services.ExecQuery(
+            Ok(self.services.ExecQuery(
                 &language,
                 &query,
                 WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
                 None,
-            )
+            )?)
         }
     }
 
     fn list_classes(&self) -> Result<IEnumWbemClassObject> {
         unsafe {
-            self.services.CreateClassEnum(
+            Ok(self.services.CreateClassEnum(
                 &BSTR::default(),
                 WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
                 None,
-            )
+            )?)
         }
     }
 
@@ -147,35 +149,61 @@ pub fn get_property_names(obj: &IWbemClassObject) -> Result<Vec<String>> {
     }
 }
 
-pub fn variant_to_string(v: &VARIANT) -> String {
+pub fn variant_to_value(v: &VARIANT) -> Value {
     unsafe {
         let vt = v.Anonymous.Anonymous.vt;
         if (vt.0 & VT_ARRAY.0) != 0 {
             let sa = v.Anonymous.Anonymous.Anonymous.parray;
             if sa.is_null() {
-                return "[]".to_string();
+                return Value::Array(vec![]);
             }
-            let mut result = String::from("[");
+            let mut arr = Vec::new();
             let lbound = SafeArrayGetLBound(sa, 1).unwrap_or(0);
             let ubound = SafeArrayGetUBound(sa, 1).unwrap_or(-1);
-            for i in lbound..=ubound {
-                if i > lbound { result.push_str(", "); }
-                result.push_str("..."); 
+            for _ in lbound..=ubound {
+                // Simplified: WMI arrays can be complex, just putting placeholders for now
+                // or we could try to get elements if we know the type.
+                arr.push(Value::String("...".to_string()));
             }
-            result.push(']');
-            return result;
+            return Value::Array(arr);
         }
 
         match vt {
-            VT_BSTR => v.Anonymous.Anonymous.Anonymous.bstrVal.to_string(),
-            VT_I4 => v.Anonymous.Anonymous.Anonymous.lVal.to_string(),
-            VT_UI4 => v.Anonymous.Anonymous.Anonymous.ulVal.to_string(),
-            VT_I2 => v.Anonymous.Anonymous.Anonymous.iVal.to_string(),
-            VT_UI2 => v.Anonymous.Anonymous.Anonymous.uiVal.to_string(),
-            VT_BOOL => (v.Anonymous.Anonymous.Anonymous.boolVal.0 != 0).to_string(),
-            VT_NULL => "null".to_string(),
-            VT_EMPTY => "".to_string(),
-            _ => format!("{:?}", vt),
+            VT_BSTR => Value::String(v.Anonymous.Anonymous.Anonymous.bstrVal.to_string()),
+            VT_I4 => Value::Number(v.Anonymous.Anonymous.Anonymous.lVal.into()),
+            VT_UI4 => Value::Number(v.Anonymous.Anonymous.Anonymous.ulVal.into()),
+            VT_I2 => Value::Number(v.Anonymous.Anonymous.Anonymous.iVal.into()),
+            VT_UI2 => Value::Number(v.Anonymous.Anonymous.Anonymous.uiVal.into()),
+            VT_BOOL => Value::Bool(v.Anonymous.Anonymous.Anonymous.boolVal.0 != 0),
+            VT_NULL => Value::Null,
+            VT_EMPTY => Value::String("".to_string()),
+            _ => Value::String(format!("{:?}", vt)),
         }
+    }
+}
+
+pub fn wmi_obj_to_json(obj: &IWbemClassObject) -> Result<Value> {
+    let names = get_property_names(obj)?;
+    let mut map = Map::new();
+    for name in names {
+        let val = get_property(obj, &name)?;
+        map.insert(name, variant_to_value(&val));
+    }
+    Ok(Value::Object(map))
+}
+
+pub fn get_object_text(obj: &IWbemClassObject) -> Result<String> {
+    unsafe {
+        let text = obj.GetObjectText(0)?;
+        Ok(text.to_string())
+    }
+}
+
+pub fn variant_to_string(v: &VARIANT) -> String {
+    let val = variant_to_value(v);
+    match val {
+        Value::String(s) => s,
+        Value::Null => "".to_string(),
+        _ => val.to_string(),
     }
 }

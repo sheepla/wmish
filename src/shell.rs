@@ -1,7 +1,8 @@
 use crate::completion::WmiHelper;
+use crate::errors::Result;
 use crate::parser::{Command, OutputFormat, parse_command};
 use crate::wmi::{
-    WmiClient, WmiProvider, WmiResult, get_property, get_property_names, variant_to_string,
+    WmiClient, WmiProvider, WmiResult, get_property, get_property_names, variant_to_string, wmi_obj_to_json, get_object_text,
 };
 use rustyline::{Config, Editor};
 use std::sync::{Arc, Mutex};
@@ -13,7 +14,7 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new() -> windows::core::Result<Self> {
+    pub fn new() -> Result<Self> {
         let namespace = r#"ROOT\CIMV2"#.to_string();
         let client = WmiClient::connect(&namespace)?;
         Ok(Self {
@@ -23,7 +24,7 @@ impl Shell {
         })
     }
 
-    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(&mut self) -> Result<()> {
         let config = Config::builder()
             .completion_type(rustyline::CompletionType::List)
             .build();
@@ -68,7 +69,7 @@ impl Shell {
         Ok(())
     }
 
-    pub fn execute_command(&mut self, cmd: Command) -> windows::core::Result<()> {
+    pub fn execute_command(&mut self, cmd: Command) -> Result<()> {
         match cmd {
             Command::Namespace(ns) => {
                 let new_client = WmiClient::connect(&ns)?;
@@ -95,13 +96,19 @@ impl Shell {
                     println!("{}", name);
                 }
             }
+            Command::MOF(class) => {
+                let client = self.client.lock().unwrap();
+                let obj = client.get_class(&class)?;
+                let mof = get_object_text(&obj)?;
+                println!("{}", mof);
+            }
             Command::Select(query) => {
                 self.execute_query(&query)?;
             }
             Command::Format(f) => {
                 self.format = f;
             }
-            Command::Call { method, target } => {
+            Command::Call { method, target, .. } => {
                 println!("Calling method {} on {} (Not implemented)", method, target);
             }
             Command::Exit => std::process::exit(0),
@@ -109,7 +116,7 @@ impl Shell {
         Ok(())
     }
 
-    pub fn execute_query(&self, query: &str) -> windows::core::Result<()> {
+    pub fn execute_query(&self, query: &str) -> Result<()> {
         let client = self.client.lock().unwrap();
         let results = client.query(query)?;
         let it = WmiResult::new(results);
@@ -126,29 +133,32 @@ impl Shell {
                 first = false;
             }
 
-            let mut row = Vec::new();
-            for header in &headers {
-                let val = get_property(&obj, header)?;
-                row.push(variant_to_string(&val));
-            }
-
             match self.format {
-                OutputFormat::Csv => println!("{}", row.join(",")),
-                OutputFormat::Table => println!("{}", row.join("\t")),
-                OutputFormat::Json => {
-                    // TODO rewrite with serde and print pretty JSON
-                    print!("{{");
-                    for (i, h) in headers.iter().enumerate() {
-                        print!(
-                            "\"{}\": \"{}\"{}",
-                            h,
-                            row[i],
-                            if i == headers.len() - 1 { "" } else { ", " }
-                        );
+                OutputFormat::Csv => {
+                    let mut row = Vec::new();
+                    for header in &headers {
+                        let val = get_property(&obj, header)?;
+                        row.push(variant_to_string(&val));
                     }
-                    println!("}}");
+                    println!("{}", row.join(","));
+                }
+                OutputFormat::Table => {
+                    if first {
+                         println!("{}", headers.join("\t"));
+                    }
+                    let mut row = Vec::new();
+                    for header in &headers {
+                        let val = get_property(&obj, header)?;
+                        row.push(variant_to_string(&val));
+                    }
+                    println!("{}", row.join("\t"));
+                }
+                OutputFormat::Json => {
+                    let json_val = wmi_obj_to_json(&obj)?;
+                    println!("{}", serde_json::to_string_pretty(&json_val)?);
                 }
             }
+            first = false;
         }
         Ok(())
     }

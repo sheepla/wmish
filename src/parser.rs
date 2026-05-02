@@ -3,8 +3,8 @@ use nom::{
     branch::alt,
     bytes::complete::tag_no_case,
     character::complete::{alphanumeric1, multispace0, multispace1},
-    combinator::{map, opt, rest},
-    sequence::{preceded, separated_pair},
+    combinator::{map, rest},
+    sequence::preceded,
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -12,10 +12,12 @@ pub enum Command {
     Namespace(String),
     Classes,
     Show(String),
+    MOF(String),
     Select(String),
     Format(OutputFormat),
     Call {
         method: String,
+        args: Vec<(String, String)>,
         target: String, // ClassName or Query
     },
     Exit,
@@ -34,6 +36,7 @@ pub fn parse_command(input: &str) -> IResult<&str, Command> {
         parse_namespace,
         parse_classes,
         parse_show,
+        parse_mof,
         parse_select,
         parse_format,
         parse_call,
@@ -68,13 +71,21 @@ fn parse_show(input: &str) -> IResult<&str, Command> {
     .parse(input)
 }
 
-fn parse_select(input: &str) -> IResult<&str, Command> {
-    // For simplicity, we just pass the whole SELECT query to WMI
+fn parse_mof(input: &str) -> IResult<&str, Command> {
     map(
-        preceded(opt(multispace0), (tag_no_case("SELECT"), rest)),
-        |_| Command::Select(input.trim().to_string()),
+        preceded((tag_no_case("MOF"), multispace1), rest),
+        |class: &str| Command::MOF(class.trim().to_string()),
     )
     .parse(input)
+}
+
+fn parse_select(input: &str) -> IResult<&str, Command> {
+    // Better SELECT parsing: it should capture the entire WQL query correctly
+    let (input, _) = tag_no_case("SELECT").parse(input)?;
+    let (_input, rest_of_query) = rest.parse(input)?;
+    
+    let full_query = format!("SELECT {}", rest_of_query.trim());
+    Ok(("", Command::Select(full_query)))
 }
 
 fn parse_format(input: &str) -> IResult<&str, Command> {
@@ -93,21 +104,28 @@ fn parse_format(input: &str) -> IResult<&str, Command> {
 }
 
 fn parse_call(input: &str) -> IResult<&str, Command> {
-    map(
-        preceded(
-            (tag_no_case("CALL"), multispace1),
-            separated_pair(
-                map(alphanumeric1, |s: &str| s.to_string()),
-                (multispace1, tag_no_case("WITH"), multispace1),
-                rest,
-            ),
-        ),
-        |(method, target): (String, &str)| Command::Call {
-            method,
-            target: target.trim().to_string(),
-        },
-    )
-    .parse(input)
+    let (input, _) = tag_no_case("CALL").parse(input)?;
+    let (input, _) = multispace1::<&str, nom::error::Error<&str>>.parse(input)?;
+    let (input, method) = alphanumeric1.parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    
+    // Check for WITH
+    let mut temp_input = input;
+    let mut target = "";
+    if let Ok((i, _)) = multispace1::<&str, nom::error::Error<&str>>.parse(temp_input) {
+        if let Ok((i, _)) = tag_no_case::<&str, &str, nom::error::Error<&str>>("WITH").parse(i) {
+            if let Ok((i, _)) = multispace1::<&str, nom::error::Error<&str>>.parse(i) {
+                temp_input = i;
+                target = temp_input.trim();
+            }
+        }
+    }
+
+    Ok(("", Command::Call {
+        method: method.to_string(),
+        args: vec![],
+        target: target.to_string(),
+    }))
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use errors::AppError;
+use crate::errors::Result;
 
 pub mod com;
 pub mod completion;
@@ -32,7 +32,7 @@ enum Command {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let args = Args::parse();
 
     let _com = com::CoInitializer::new()?;
