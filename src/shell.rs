@@ -2,7 +2,8 @@ use crate::completion::WmiHelper;
 use crate::errors::AppError;
 use crate::parser::{Command, OutputFormat, parse_command};
 use crate::wmi::{
-    WmiClient, WmiProvider, WmiResult, get_property, get_property_names, variant_to_string, wmi_obj_to_json, get_object_text,
+    WmiClient, WmiProvider, WmiResult, get_object_text, get_property, get_property_names,
+    variant_to_string,
 };
 use rustyline::{Config, Editor};
 use std::sync::{Arc, Mutex};
@@ -122,7 +123,7 @@ impl Shell {
         let client = self.client.lock().unwrap();
         let results = client.query(query)?;
         let it = WmiResult::new(results);
-        
+
         let mut rows = Vec::new();
         let mut headers = Vec::new();
         let mut first = true;
@@ -171,15 +172,18 @@ impl Shell {
                 println!("{}", table);
             }
             OutputFormat::Json => {
-                let client = self.client.lock().unwrap();
-                let results = client.query(query)?;
-                let it = WmiResult::new(results);
                 let mut json_arr = Vec::new();
-                for obj in it {
-                    let obj = obj?;
-                    json_arr.push(wmi_obj_to_json(&obj)?);
+                for row in rows {
+                    let mut map = serde_json::Map::new();
+                    for (i, header) in headers.iter().enumerate() {
+                        map.insert(header.clone(), serde_json::Value::String(row[i].clone()));
+                    }
+                    json_arr.push(serde_json::Value::Object(map));
                 }
-                println!("{}", serde_json::to_string_pretty(&json_arr)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::Value::Array(json_arr))?
+                );
             }
         }
         Ok(())

@@ -1,5 +1,5 @@
-use clap::{Parser, Subcommand};
 use crate::errors::AppError;
+use clap::{Parser, Subcommand};
 
 pub mod com;
 pub mod completion;

@@ -1,10 +1,10 @@
+use crate::wmi::{WmiProvider, WmiResult, get_property, variant_to_string};
 use rustyline::completion::{Completer, Pair};
-use rustyline::hint::Hinter;
 use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 use rustyline::{Context, Helper};
 use std::sync::{Arc, Mutex};
-use crate::wmi::{WmiProvider, WmiResult, get_property, variant_to_string};
 
 pub struct WmiHelper {
     pub client: Arc<Mutex<Box<dyn WmiProvider>>>,
@@ -80,7 +80,7 @@ impl WmiHelper {
 
         // Check if we can use the current client or need a new one
         let current_ns = self.namespace.lock().unwrap().clone();
-        
+
         let results = if query_ns.to_uppercase() == current_ns.to_uppercase() {
             let client = self.client.lock().unwrap();
             client.query("SELECT Name FROM __NAMESPACE")
@@ -106,7 +106,7 @@ impl WmiHelper {
                 }
             }
         }
-        
+
         namespaces
     }
 }
@@ -122,17 +122,22 @@ impl Completer for WmiHelper {
     ) -> rustyline::Result<(usize, Vec<Pair>)> {
         let mut candidates = Vec::new();
         let up_line = line.to_uppercase();
-        
+
         // Find the word being completed at pos
         let prefix = &line[..pos];
         // Split by space or comma, but NOT by slashes for namespace completion
-        let last_word = prefix.split(|c: char| c == ' ' || c == ',').last().unwrap_or("");
+        let last_word = prefix
+            .split(|c: char| c == ' ' || c == ',')
+            .last()
+            .unwrap_or("");
         let word_start = pos - last_word.len();
         let up_last_word = last_word.to_uppercase();
 
         // Check the first word of the line to determine command
         let words: Vec<&str> = line.split_whitespace().collect();
-        if words.is_empty() || (words.len() == 1 && pos <= words[0].len() + (line.len() - line.trim_start().len())) {
+        if words.is_empty()
+            || (words.len() == 1 && pos <= words[0].len() + (line.len() - line.trim_start().len()))
+        {
             // Completing the command itself
             for cmd in &self.commands {
                 if cmd.starts_with(&up_last_word) {
@@ -173,7 +178,7 @@ impl Completer for WmiHelper {
                 // Find "FROM" and "WHERE" in the line
                 let from_match = up_line.find(" FROM ");
                 let where_match = up_line.find(" WHERE ");
-                
+
                 if let Some(f_idx) = from_match {
                     let rest_after_from = &line[f_idx + 6..];
                     let class_name = rest_after_from.split_whitespace().next().unwrap_or("");
@@ -204,11 +209,10 @@ impl Completer for WmiHelper {
                                     }
                                 }
                             }
-                            
+
                             let operators = vec![
-                                "=", "<>", "!=", ">", "<", ">=", "<=", 
-                                "LIKE", "IS", "IS NOT", "ISA", 
-                                "AND", "OR", "NOT"
+                                "=", "<>", "!=", ">", "<", ">=", "<=", "LIKE", "IS", "IS NOT",
+                                "ISA", "AND", "OR", "NOT",
                             ];
                             for op in operators {
                                 if op.starts_with(&up_last_word) {
@@ -220,8 +224,8 @@ impl Completer for WmiHelper {
                             }
                             return Ok((word_start, candidates));
                         } else if pos > f_idx + 6 && pos <= w_idx + 1 {
-                             // Cursor is between FROM and WHERE -> Complete class name
-                             for class in self.get_classes() {
+                            // Cursor is between FROM and WHERE -> Complete class name
+                            for class in self.get_classes() {
                                 if class.to_uppercase().starts_with(&up_last_word) {
                                     candidates.push(Pair {
                                         display: class.clone(),
@@ -235,7 +239,7 @@ impl Completer for WmiHelper {
                         // Cursor is after FROM but no WHERE yet
                         let after_from = &up_line[f_idx + 6..pos];
                         if !after_from.contains(' ') {
-                             for class in self.get_classes() {
+                            for class in self.get_classes() {
                                 if class.to_uppercase().starts_with(&up_last_word) {
                                     candidates.push(Pair {
                                         display: class.clone(),

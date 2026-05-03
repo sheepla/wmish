@@ -1,13 +1,9 @@
-use windows::{
-    core::*,
-    Win32::System::Com::*,
-    Win32::System::Wmi::*,
-    Win32::System::Ole::*,
-    Win32::System::Rpc::*,
-    Win32::System::Variant::*,
-};
 use crate::errors::AppError;
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
+use windows::{
+    Win32::System::Com::*, Win32::System::Ole::*, Win32::System::Rpc::*, Win32::System::Variant::*,
+    Win32::System::Wmi::*, core::*,
+};
 
 pub trait WmiProvider: Send + Sync {
     fn query(&self, query: &str) -> std::result::Result<IEnumWbemClassObject, AppError>;
@@ -50,7 +46,13 @@ impl WmiProvider for WmiClient {
     fn get_class(&self, class_name: &str) -> std::result::Result<IWbemClassObject, AppError> {
         unsafe {
             let mut obj = None;
-            self.services.GetObject(&BSTR::from(class_name), WBEM_FLAG_RETURN_WBEM_COMPLETE, None, Some(&mut obj), None)?;
+            self.services.GetObject(
+                &BSTR::from(class_name),
+                WBEM_FLAG_RETURN_WBEM_COMPLETE,
+                None,
+                Some(&mut obj),
+                None,
+            )?;
             Ok(obj.unwrap())
         }
     }
@@ -111,7 +113,9 @@ impl Iterator for WmiResult {
         unsafe {
             let mut objects = [None; 1];
             let mut returned = 0;
-            let result = self.enum_obj.Next(WBEM_INFINITE, &mut objects, &mut returned);
+            let result = self
+                .enum_obj
+                .Next(WBEM_INFINITE, &mut objects, &mut returned);
             if result.is_err() || returned == 0 {
                 None
             } else {
@@ -138,7 +142,11 @@ pub fn get_property_names(obj: &IWbemClassObject) -> std::result::Result<Vec<Str
         for i in 0..count {
             let mut bstr = BSTR::default();
             let indices = [i as i32];
-            SafeArrayGetElement(names_ptr, indices.as_ptr() as *const _, &mut bstr as *mut _ as *mut _)?;
+            SafeArrayGetElement(
+                names_ptr,
+                indices.as_ptr() as *const _,
+                &mut bstr as *mut _ as *mut _,
+            )?;
             let name = bstr.to_string();
             if !name.starts_with("__") {
                 names.push(name);

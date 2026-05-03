@@ -85,7 +85,7 @@ fn parse_select(input: &str) -> IResult<&str, Command> {
     // Better SELECT parsing: it should capture the entire WQL query correctly
     let (input, _) = tag_no_case("SELECT").parse(input)?;
     let (_input, rest_of_query) = rest.parse(input)?;
-    
+
     let full_query = format!("SELECT {}", rest_of_query.trim());
     Ok(("", Command::Select(full_query)))
 }
@@ -112,7 +112,7 @@ fn parse_call(input: &str) -> IResult<&str, Command> {
     let (input, _) = multispace1::<&str, nom::error::Error<&str>>.parse(input)?;
     let (input, method) = alphanumeric1.parse(input)?;
     let (input, _) = multispace0.parse(input)?;
-    
+
     // Check for WITH
     let mut temp_input = input;
     let mut target = "";
@@ -125,11 +125,14 @@ fn parse_call(input: &str) -> IResult<&str, Command> {
         }
     }
 
-    Ok(("", Command::Call {
-        method: method.to_string(),
-        args: vec![],
-        target: target.to_string(),
-    }))
+    Ok((
+        "",
+        Command::Call {
+            method: method.to_string(),
+            args: vec![],
+            target: target.to_string(),
+        },
+    ))
 }
 
 #[cfg(test)]
