@@ -2,8 +2,7 @@ use crate::completion::WmiHelper;
 use crate::errors::AppError;
 use crate::parser::{Command, OutputFormat, parse_command};
 use crate::wmi::{
-    WmiClient, WmiProvider, WmiResult, get_object_text, get_property, get_property_names,
-    variant_to_string,
+    WmiClient, WmiProvider, WmiResult, get_property, get_property_names, variant_to_string, get_object_text,
 };
 use rustyline::{Config, Editor};
 use std::sync::{Arc, Mutex};
@@ -25,6 +24,10 @@ impl Shell {
             namespace: Arc::new(Mutex::new(namespace)),
             format: OutputFormat::Table,
         })
+    }
+
+    pub fn set_format(&mut self, format: OutputFormat) {
+        self.format = format;
     }
 
     pub fn run(&mut self) -> std::result::Result<(), AppError> {
@@ -123,7 +126,7 @@ impl Shell {
         let client = self.client.lock().unwrap();
         let results = client.query(query)?;
         let it = WmiResult::new(results);
-
+        
         let mut rows = Vec::new();
         let mut headers = Vec::new();
         let mut first = true;
@@ -155,7 +158,6 @@ impl Shell {
                 }
             }
             OutputFormat::Table | OutputFormat::Ascii | OutputFormat::Markdown => {
-                // Table requires references to elements. Constructing a grid
                 let mut data = Vec::new();
                 data.push(headers);
                 for row in rows {
@@ -180,10 +182,7 @@ impl Shell {
                     }
                     json_arr.push(serde_json::Value::Object(map));
                 }
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::Value::Array(json_arr))?
-                );
+                println!("{}", serde_json::to_string_pretty(&serde_json::Value::Array(json_arr))?);
             }
         }
         Ok(())

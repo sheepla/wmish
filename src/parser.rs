@@ -23,7 +23,9 @@ pub enum Command {
     Exit,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+use clap::ValueEnum;
+
+#[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum OutputFormat {
     Csv,
     Table,

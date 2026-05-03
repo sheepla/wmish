@@ -1,5 +1,6 @@
-use crate::errors::AppError;
 use clap::{Parser, Subcommand};
+use crate::errors::AppError;
+use crate::parser::OutputFormat;
 
 pub mod com;
 pub mod completion;
@@ -28,6 +29,9 @@ enum Command {
     Query {
         /// WQL query to execute
         query: String,
+        /// Output format (table, csv, json, ascii, markdown)
+        #[clap(short, long, value_enum, default_value = "table")]
+        format: OutputFormat,
     },
 }
 
@@ -68,8 +72,9 @@ async fn main() -> std::result::Result<(), AppError> {
                 }
             }
         }
-        Command::Query { query } => {
-            let shell = shell::Shell::new()?;
+        Command::Query { query, format } => {
+            let mut shell = shell::Shell::new()?;
+            shell.set_format(format);
             shell.execute_query(&query)?;
         }
     }
