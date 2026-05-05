@@ -33,9 +33,9 @@
 - `wmish shell`: Interactive-shell mode that supports Tab-completion
 - `wmish query QUERY`: Interactive-shell mode
 
-## Inline Commands
+## Inline Commands (WIP)
 
-Inline commands are available for `shell` and `run` command.
+Inline commands are available for `shell` and `run` command. Unchecked items are not yet implemented.
 
 - [x] `NAMESPACE <Namespace>`: Move around namespaces hieralchy like `cd` command
 - [x] `CLASSES`: Show a list of classes on the current namespace like `ls` command
